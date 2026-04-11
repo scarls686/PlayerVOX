@@ -1,0 +1,39 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+    modId="playervox"
+    version="${file.jarVersion}"
+    displayName="PlayerVOX"
+    credits="Developed by SCARLS686"
+    authors="SCARLS686"
+    description='''
+PlayerVOX — 数据包驱动的语音系统
+
+通过资源包定义音频，通过数据包定义触发条件，为玩家角色添加语音。
+支持原版触发器（受伤、死亡、击杀等）及 TACZ 枪械触发器（可选）。
+
+Minecraft 1.20.1 | Forge 47.2.0
+'''
+
+[[dependencies.playervox]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47.2,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.playervox]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.playervox]]
+    modId="tacz"
+    mandatory=false
+    versionRange="[*,)"
+    ordering="AFTER"
+    side="BOTH"

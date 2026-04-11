@@ -1,0 +1,19 @@
+# Gradle
+.gradle/
+build/
+bin/
+
+# IDE
+.idea/
+*.iml
+out/
+.vscode/
+
+# Forge MDK run directory
+run/
+
+# Local dependencies (place tacz-1.20.1.jar here manually)
+libs/
+
+# Voice pack template (to be rewritten with annotated example)
+vox_pack_template/

@@ -1,0 +1,10 @@
+{
+  "vox": {
+    "subtitle": "playervox.subtitle.vox",
+    "sounds": [
+      {
+        "name": "playervox:empty"
+      }
+    ]
+  }
+}
