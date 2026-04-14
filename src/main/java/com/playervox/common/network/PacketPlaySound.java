@@ -1,5 +1,6 @@
 package com.playervox.common.network;
 
+import com.playervox.client.SubtitleOverlay;
 import com.playervox.client.VoxSoundInstance;
 import com.playervox.common.init.ModSounds;
 import net.minecraft.client.Minecraft;
@@ -28,16 +29,21 @@ public class PacketPlaySound {
     private final int entityId;
     private final float volume;
     private final float pitch;
+    private final String subtitle;   // nullable
+    private final String playerName; // 发声玩家的游戏名
 
     /** 客户端按实体 ID 跟踪正在播放的 VOX 语音，每个实体独立打断 */
     @OnlyIn(Dist.CLIENT)
     private static final Map<Integer, SoundInstance> activeVoxSounds = new ConcurrentHashMap<>();
 
-    public PacketPlaySound(ResourceLocation sound, int entityId, float volume, float pitch) {
+    public PacketPlaySound(ResourceLocation sound, int entityId, float volume, float pitch,
+                           String subtitle, String playerName) {
         this.sound = sound;
         this.entityId = entityId;
         this.volume = volume;
         this.pitch = pitch;
+        this.subtitle = subtitle;
+        this.playerName = playerName;
     }
 
     public static void encode(PacketPlaySound pkt, FriendlyByteBuf buf) {
@@ -45,15 +51,22 @@ public class PacketPlaySound {
         buf.writeInt(pkt.entityId);
         buf.writeFloat(pkt.volume);
         buf.writeFloat(pkt.pitch);
+        buf.writeBoolean(pkt.subtitle != null);
+        if (pkt.subtitle != null) {
+            buf.writeUtf(pkt.subtitle);
+        }
+        buf.writeUtf(pkt.playerName);
     }
 
     public static PacketPlaySound decode(FriendlyByteBuf buf) {
-        return new PacketPlaySound(
-                buf.readResourceLocation(),
-                buf.readInt(),
-                buf.readFloat(),
-                buf.readFloat()
-        );
+        ResourceLocation sound = buf.readResourceLocation();
+        int entityId = buf.readInt();
+        float volume = buf.readFloat();
+        float pitch = buf.readFloat();
+        boolean hasSubtitle = buf.readBoolean();
+        String subtitle = hasSubtitle ? buf.readUtf() : null;
+        String playerName = buf.readUtf();
+        return new PacketPlaySound(sound, entityId, volume, pitch, subtitle, playerName);
     }
 
     public static void handle(PacketPlaySound pkt, Supplier<NetworkEvent.Context> ctx) {
@@ -88,6 +101,13 @@ public class PacketPlaySound {
 
         activeVoxSounds.put(pkt.entityId, instance);
         mc.getSoundManager().play(instance);
+
+        // 字幕处理
+        if (pkt.subtitle != null) {
+            boolean isOwn = (entity == mc.player);
+            double distance = entity.distanceTo(mc.player);
+            SubtitleOverlay.onSubtitle(pkt.playerName, pkt.subtitle, isOwn, distance);
+        }
 
         com.playervox.PlayerVoxMod.LOGGER.info("PlayerVOX: 客户端播放 {} (绑定实体 {})",
                 pkt.sound, entity.getName().getString());

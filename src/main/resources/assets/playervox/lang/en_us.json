@@ -1,5 +1,20 @@
 {
   "key.playervox.open_vox_screen": "Open Voice Pack Selection",
   "key.categories.playervox": "PlayerVOX",
-  "gui.playervox.select_pack": "Select Voice Pack"
+  "gui.playervox.select_pack": "Select Voice Pack",
+  "gui.playervox.subtitle_settings": "Subtitle Settings",
+  "gui.playervox.subtitle_settings_title": "Subtitle Settings",
+  "gui.playervox.subtitle_x": "X Position:",
+  "gui.playervox.subtitle_y": "Y Position:",
+  "gui.playervox.subtitle_scale": "Scale:",
+  "gui.playervox.subtitle_name_color": "Name Color:",
+  "gui.playervox.subtitle_show_own": "Show Own Subtitles",
+  "gui.playervox.subtitle_show_other": "Show Others' Subtitles",
+  "gui.playervox.subtitle_reset": "Reset to Default",
+  "gui.playervox.subtitle_hint": "(-1 = auto center / default position)",
+  "gui.playervox.done": "Done",
+  "playervox.subtitle.vox": "Voice",
+  "gui.playervox.no_pack": "No Voice Pack",
+  "gui.playervox.current_none": "No voice pack selected",
+  "gui.playervox.current_pack": "Current: %s"
 }

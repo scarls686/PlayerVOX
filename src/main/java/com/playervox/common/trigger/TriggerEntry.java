@@ -13,11 +13,13 @@ public class TriggerEntry {
     public final int weight;
     public final JsonObject conditions;
     public final boolean once;
+    public final String subtitle; // nullable
 
-    public TriggerEntry(ResourceLocation sound, int weight, JsonObject conditions, boolean once) {
+    public TriggerEntry(ResourceLocation sound, int weight, JsonObject conditions, boolean once, String subtitle) {
         this.sound = sound;
         this.weight = weight;
         this.conditions = conditions;
         this.once = once;
+        this.subtitle = subtitle;
     }
 }

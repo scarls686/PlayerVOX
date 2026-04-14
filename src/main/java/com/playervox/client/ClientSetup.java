@@ -21,9 +21,14 @@ public class ClientSetup {
         }
     }
 
-    /** forgeBus 上监听按键按下 */
+    /** forgeBus 上监听按键按下 + 字幕渲染 */
     @Mod.EventBusSubscriber(value = Dist.CLIENT)
     public static class ForgeBusEvents {
+        @SubscribeEvent
+        public static void onRenderGui(net.minecraftforge.client.event.RenderGuiOverlayEvent.Post event) {
+            SubtitleOverlay.onRenderGui(event);
+        }
+
         @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent event) {
             if (event.phase != TickEvent.Phase.END) return;

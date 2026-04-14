@@ -190,7 +190,10 @@ public class VanillaTriggerHandler {
 
         PlayerVoxMod.LOGGER.info("PlayerVOX: 播放语音 sound={} player={} pack={}",
                 result.sound(), player.getName().getString(), packId);
-        PacketPlaySound packet = new PacketPlaySound(result.sound(), player.getId(), volume, pitch);
+        PacketPlaySound packet = new PacketPlaySound(
+                result.sound(), player.getId(), volume, pitch,
+                result.subtitle(), player.getName().getString()
+        );
         NetworkHandler.INSTANCE.send(
                 PacketDistributor.NEAR.with(() -> new PacketDistributor.TargetPoint(
                         player.getX(), player.getY(), player.getZ(),

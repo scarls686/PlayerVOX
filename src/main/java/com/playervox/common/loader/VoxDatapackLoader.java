@@ -64,7 +64,9 @@ public class VoxDatapackLoader extends SimpleJsonResourceReloadListener {
             int weight = e.has("weight") ? e.get("weight").getAsInt() : 1;
             JsonObject conditions = e.has("conditions") ? e.getAsJsonObject("conditions") : null;
             boolean once = e.has("once") && e.get("once").getAsBoolean();
-            entries.add(new TriggerEntry(sound, weight, conditions, once));
+            String subtitle = e.has("text") && !e.get("text").getAsString().isEmpty()
+                    ? e.get("text").getAsString() : null;
+            entries.add(new TriggerEntry(sound, weight, conditions, once, subtitle));
         }
 
         return new TriggerDefinition(trigger, cooldown, entries);

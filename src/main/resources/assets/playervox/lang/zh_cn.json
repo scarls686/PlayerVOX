@@ -1,5 +1,20 @@
 {
   "key.playervox.open_vox_screen": "打开语音包选择",
   "key.categories.playervox": "PlayerVOX",
-  "gui.playervox.select_pack": "选择语音包"
+  "gui.playervox.select_pack": "选择语音包",
+  "gui.playervox.subtitle_settings": "字幕设置",
+  "gui.playervox.subtitle_settings_title": "字幕设置",
+  "gui.playervox.subtitle_x": "X 坐标:",
+  "gui.playervox.subtitle_y": "Y 坐标:",
+  "gui.playervox.subtitle_scale": "缩放:",
+  "gui.playervox.subtitle_name_color": "名字颜色:",
+  "gui.playervox.subtitle_show_own": "显示自己的字幕",
+  "gui.playervox.subtitle_show_other": "显示他人的字幕",
+  "gui.playervox.subtitle_reset": "恢复默认",
+  "gui.playervox.subtitle_hint": "(-1 = 自动居中/默认位置)",
+  "gui.playervox.done": "完成",
+  "playervox.subtitle.vox": "语音",
+  "gui.playervox.no_pack": "无语音包",
+  "gui.playervox.current_none": "当前未选择语音包",
+  "gui.playervox.current_pack": "当前: %s"
 }

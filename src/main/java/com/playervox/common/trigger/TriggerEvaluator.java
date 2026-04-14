@@ -19,8 +19,8 @@ public class TriggerEvaluator {
 
     private static final Random RANDOM = new Random();
 
-    /** evaluate 的返回结果：音效 + 来自 JSON 的冷却时长 + once 信息 */
-    public record Result(ResourceLocation sound, int cooldownTicks, boolean once, String conditionsKey) {}
+    /** evaluate 的返回结果：音效 + 来自 JSON 的冷却时长 + once 信息 + 字幕 */
+    public record Result(ResourceLocation sound, int cooldownTicks, boolean once, String conditionsKey, String subtitle) {}
 
     /**
      * 通用入口。
@@ -96,7 +96,7 @@ public class TriggerEvaluator {
                 int accumulated = 0;
                 for (TriggerEntry e : group) {
                     accumulated += e.weight;
-                    if (roll < accumulated) return new Result(e.sound, def.cooldownTicks, groupOnce, conditionsKey);
+                    if (roll < accumulated) return new Result(e.sound, def.cooldownTicks, groupOnce, conditionsKey, e.subtitle);
                 }
             }
         }
