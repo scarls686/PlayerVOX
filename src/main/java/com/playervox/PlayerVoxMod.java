@@ -7,10 +7,14 @@ import com.playervox.common.handler.VanillaTriggerHandler;
 import com.playervox.common.init.ModSounds;
 import com.playervox.common.handler.VoxSelectionManager;
 import com.playervox.common.loader.VoxDatapackLoader;
+import com.playervox.common.radial.RadialDatapackLoader;
 import com.playervox.common.loader.VoxPackFinder;
 import com.playervox.common.network.NetworkHandler;
+import com.playervox.common.network.PacketSyncRadialSlots;
 import com.playervox.common.network.PacketSyncVoxPackList;
 import com.playervox.common.network.PacketSyncVoxSelection;
+import com.playervox.common.radial.RadialRegistry;
+import net.minecraft.network.chat.Component;
 import com.playervox.compat.tacz.TaczCompat;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.MinecraftForge;
@@ -66,6 +70,7 @@ public class PlayerVoxMod {
     @SubscribeEvent
     public static void onAddReloadListeners(AddReloadListenerEvent event) {
         event.addListener(new VoxDatapackLoader());
+        event.addListener(new RadialDatapackLoader());
     }
 
     /** 客户端资源重载监听器注册 */
@@ -95,6 +100,18 @@ public class PlayerVoxMod {
                 PacketDistributor.PLAYER.with(() -> player),
                 new PacketSyncVoxSelection(selection != null ? selection : "")
         );
+
+        // 同步轮盘扇区定义到客户端
+        var allRadialSlots = RadialRegistry.getAllSlots();
+        NetworkHandler.INSTANCE.send(
+                PacketDistributor.PLAYER.with(() -> player),
+                new PacketSyncRadialSlots(allRadialSlots)
+        );
+
+        // 发送轮盘扇区加载冲突警告
+        for (String warning : RadialDatapackLoader.drainWarnings()) {
+            player.sendSystemMessage(Component.literal(warning));
+        }
     }
 
     /** 玩家断线时清理冷却数据 */

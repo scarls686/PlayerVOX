@@ -60,7 +60,7 @@ public class TaczTriggerHandler {
 
     /** 从 ItemStack 取枪械 ID，格式如 "tacz:ak47" */
     private static String getGunId(net.minecraft.world.item.ItemStack stack) {
-        ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
+        ResourceLocation id = net.minecraftforge.registries.ForgeRegistries.ITEMS.getKey(stack.getItem());
         return id != null ? id.toString() : "";
     }
 }

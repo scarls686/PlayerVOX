@@ -7,7 +7,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 public class NetworkHandler {
 
-    private static final String PROTOCOL_VERSION = "3";
+    private static final String PROTOCOL_VERSION = "5";
     public static SimpleChannel INSTANCE;
     private static int packetId = 0;
 
@@ -32,5 +32,14 @@ public class NetworkHandler {
 
         INSTANCE.registerMessage(nextId(),
                 PacketSyncVoxPackList.class, PacketSyncVoxPackList::encode, PacketSyncVoxPackList::decode, PacketSyncVoxPackList::handle);
+
+        INSTANCE.registerMessage(nextId(),
+                PacketRadialSelect.class, PacketRadialSelect::encode, PacketRadialSelect::decode, PacketRadialSelect::handle);
+
+        INSTANCE.registerMessage(nextId(),
+                PacketRadialAck.class, PacketRadialAck::encode, PacketRadialAck::decode, PacketRadialAck::handle);
+
+        INSTANCE.registerMessage(nextId(),
+                PacketSyncRadialSlots.class, PacketSyncRadialSlots::encode, PacketSyncRadialSlots::decode, PacketSyncRadialSlots::handle);
     }
 }

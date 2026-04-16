@@ -105,50 +105,11 @@ public class TriggerEvaluator {
     }
 
     /**
-     * 收集指定 trigger 下所有带 once 标记的条件组 key 及其条件。
-     * 用于 onTick 中检测 once 组是否需要重置。
-     *
-     * @return list of (conditionsKey, conditions JsonObject) pairs
+     * 返回指定 trigger 下所有带 once 标记的条件组 key 及其条件。
+     * 结果来自 TriggerRegistry 在 reload() 时预计算的缓存，无遍历开销。
      */
     public static List<Map.Entry<String, JsonObject>> getOnceGroups(String namespace, String trigger) {
-        List<TriggerDefinition> defs = TriggerRegistry.getByTrigger(namespace, trigger);
-        List<Map.Entry<String, JsonObject>> result = new ArrayList<>();
-
-        for (TriggerDefinition def : defs) {
-            Set<String> seen = new HashSet<>();
-            JsonObject groupConditions = null;
-            boolean groupStarted = false;
-            boolean groupOnce = false;
-
-            for (TriggerEntry entry : def.entries) {
-                if (!groupStarted) {
-                    groupConditions = entry.conditions;
-                    groupStarted = true;
-                    groupOnce = entry.once;
-                } else if (conditionsEqual(entry.conditions, groupConditions)) {
-                    if (entry.once) groupOnce = true;
-                } else {
-                    // 新条件组开始，先保存上一组
-                    if (groupOnce) {
-                        String key = groupConditions != null ? groupConditions.toString() : "";
-                        if (seen.add(key)) {
-                            result.add(Map.entry(key, groupConditions != null ? groupConditions : new JsonObject()));
-                        }
-                    }
-                    groupConditions = entry.conditions;
-                    groupOnce = entry.once;
-                }
-            }
-            // 最后一组
-            if (groupOnce) {
-                String key = groupConditions != null ? groupConditions.toString() : "";
-                if (seen.add(key)) {
-                    result.add(Map.entry(key, groupConditions != null ? groupConditions : new JsonObject()));
-                }
-            }
-        }
-
-        return result;
+        return TriggerRegistry.getCachedOnceGroups(namespace, trigger);
     }
 
     /** 暴露条件匹配方法，供外部重置检查使用 */
@@ -196,7 +157,7 @@ public class TriggerEvaluator {
         // target_type（kill 类）
         if (cond.has("target_type") && target != null) {
             String targetType = cond.get("target_type").getAsString();
-            ResourceLocation entityId = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+            ResourceLocation entityId = net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES
                     .getKey(target.getType());
             if (!targetType.equals(entityId != null ? entityId.toString() : "")) return false;
         }
