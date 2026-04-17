@@ -1,0 +1,14 @@
+{
+  "mappings": {
+    "com/playervox/mixin/MouseHandlerMixin": {
+      "turnPlayer": "Lnet/minecraft/client/MouseHandler;m_91523_()V"
+    }
+  },
+  "data": {
+    "searge": {
+      "com/playervox/mixin/MouseHandlerMixin": {
+        "turnPlayer": "Lnet/minecraft/client/MouseHandler;m_91523_()V"
+      }
+    }
+  }
+}

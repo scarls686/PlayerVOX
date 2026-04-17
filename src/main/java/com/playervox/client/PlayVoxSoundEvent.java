@@ -2,6 +2,7 @@ package com.playervox.client;
 
 import com.playervox.PlayerVoxMod;
 import com.mojang.blaze3d.audio.SoundBuffer;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.sound.PlaySoundSourceEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -16,14 +17,24 @@ public class PlayVoxSoundEvent {
 
     @SubscribeEvent
     public static void onPlaySoundSource(PlaySoundSourceEvent event) {
+        SoundBuffer soundBuffer = null;
+        ResourceLocation name = null;
+
         if (event.getSound() instanceof VoxSoundInstance instance) {
-            SoundBuffer soundBuffer = instance.getSoundBuffer();
+            soundBuffer = instance.getSoundBuffer();
+            name = instance.getRegistryName();
+        } else if (event.getSound() instanceof VoxPositionedSoundInstance instance) {
+            soundBuffer = instance.getSoundBuffer();
+            name = instance.getRegistryName();
+        }
+
+        if (name != null) {
             if (soundBuffer != null) {
                 event.getChannel().attachStaticBuffer(soundBuffer);
                 event.getChannel().play();
-                PlayerVoxMod.LOGGER.debug("PlayerVOX: PlaySoundSourceEvent 注入音频 buffer: {}", instance.getRegistryName());
+                PlayerVoxMod.LOGGER.debug("PlayerVOX: PlaySoundSourceEvent 注入音频 buffer: {}", name);
             } else {
-                PlayerVoxMod.LOGGER.warn("PlayerVOX: PlaySoundSourceEvent 未找到音频缓存: {}", instance.getRegistryName());
+                PlayerVoxMod.LOGGER.warn("PlayerVOX: PlaySoundSourceEvent 未找到音频缓存: {}", name);
             }
         }
     }

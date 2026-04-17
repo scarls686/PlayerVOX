@@ -27,6 +27,7 @@ minecraft {
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
             property 'forge.enabledGameTestNamespaces', "${mod_id}"
+            arg "-mixin.config=playervox.mixins.json"
             mods {
                 "${mod_id}" {
                     source sourceSets.main
@@ -74,7 +75,8 @@ jar {
             'Implementation-Title'    : project.name,
             'Implementation-Version'  : project.jar.archiveVersion,
             'Implementation-Vendor'   : "${mod_authors}",
-            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+            'MixinConfigs'            : 'playervox.mixins.json'
         ])
     }
 }
@@ -96,4 +98,11 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+// 打包 jar 时注入手写的 refmap（不放在 src/main/resources/ 中，避免开发环境加载导致崩溃）
+jar {
+    from('mixin-extra') {
+        include 'playervox.refmap.json'
+    }
 }

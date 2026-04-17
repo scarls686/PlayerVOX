@@ -16,6 +16,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,11 +60,11 @@ public class VoxSelectScreen extends Screen {
             }
         }
 
-        // 字幕设置按钮（右下角）
+        // 客户端设置按钮（右上角）
         this.addRenderableWidget(Button.builder(
-                Component.translatable("gui.playervox.subtitle_settings"),
-                b -> this.minecraft.setScreen(new VoxSubtitleSettingsScreen(this))
-        ).pos(this.width - 130, this.height - 25).size(120, 20).build());
+                Component.translatable("gui.playervox.client_settings"),
+                b -> this.minecraft.setScreen(new VoxClientSettingsScreen(this))
+        ).pos(this.width - 130, 10).size(120, 20).build());
     }
 
     @Override
@@ -187,20 +188,43 @@ public class VoxSelectScreen extends Screen {
                     RenderSystem.disableBlend();
                     textLeft = left + ICON_SIZE + 6;
                 } catch (Exception e) {
-                    // icon 加载失败，忽略
                     iconLocation = null;
                 }
             }
 
+            net.minecraft.client.gui.Font font = VoxSelectScreen.this.font;
+            int maxTextWidth = left + width - textLeft - 4;
+
             String prefix = selected ? "\u25b6 " : "  ";
-            graphics.drawString(VoxSelectScreen.this.font, prefix + getDisplayName().getString(),
-                    textLeft, top + 4, color, false);
+            String nameStr = prefix + getDisplayName().getString();
+            String displayName = truncateString(font, nameStr, maxTextWidth);
+            graphics.drawString(font, displayName, textLeft, top + 4, color, false);
 
             if (descriptionKey != null && !descriptionKey.isEmpty()) {
-                Component desc = Component.translatable(descriptionKey);
-                graphics.drawString(VoxSelectScreen.this.font, desc,
-                        textLeft + 10, top + 16, 0x888888, false);
+                String descStr = Component.translatable(descriptionKey).getString();
+                int descLeft = textLeft + 10;
+                int maxDescWidth = left + width - descLeft - 4;
+                String displayDesc = truncateString(font, descStr, maxDescWidth);
+                graphics.drawString(font, displayDesc, descLeft, top + 16, 0x888888, false);
             }
+
+            // Tooltip：悬停时显示完整名称和描述
+            if (hovered) {
+                List<Component> tooltip = new ArrayList<>();
+                tooltip.add(getDisplayName());
+                if (descriptionKey != null && !descriptionKey.isEmpty()) {
+                    tooltip.add(Component.translatable(descriptionKey).withStyle(net.minecraft.ChatFormatting.GRAY));
+                }
+                graphics.renderTooltip(font, tooltip, java.util.Optional.empty(), mouseX, mouseY);
+            }
+        }
+
+        private String truncateString(net.minecraft.client.gui.Font font, String text, int maxWidth) {
+            if (font.width(text) <= maxWidth) return text;
+            String ellipsis = "...";
+            int ellipsisWidth = font.width(ellipsis);
+            String trimmed = font.plainSubstrByWidth(text, maxWidth - ellipsisWidth);
+            return trimmed + ellipsis;
         }
 
         @Override

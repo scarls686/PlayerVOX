@@ -1,6 +1,7 @@
 package com.playervox.common.network;
 
 import com.playervox.client.SubtitleOverlay;
+import com.playervox.client.VoxPositionedSoundInstance;
 import com.playervox.common.init.ModSounds;
 import com.playervox.client.VoxSoundInstance;
 import net.minecraft.client.Minecraft;
@@ -25,12 +26,17 @@ public class PacketRadialAck {
     private final int entityId;
     private final String subtitle;        // nullable
     private final String playerName;
+    private final double posX, posY, posZ;
 
-    public PacketRadialAck(ResourceLocation sound, int entityId, String subtitle, String playerName) {
+    public PacketRadialAck(ResourceLocation sound, int entityId, String subtitle, String playerName,
+                           double posX, double posY, double posZ) {
         this.sound = sound;
         this.entityId = entityId;
         this.subtitle = subtitle;
         this.playerName = playerName;
+        this.posX = posX;
+        this.posY = posY;
+        this.posZ = posZ;
     }
 
     public static void encode(PacketRadialAck pkt, FriendlyByteBuf buf) {
@@ -45,6 +51,9 @@ public class PacketRadialAck {
             buf.writeUtf(pkt.subtitle);
         }
         buf.writeUtf(pkt.playerName);
+        buf.writeDouble(pkt.posX);
+        buf.writeDouble(pkt.posY);
+        buf.writeDouble(pkt.posZ);
     }
 
     public static PacketRadialAck decode(FriendlyByteBuf buf) {
@@ -54,7 +63,10 @@ public class PacketRadialAck {
         boolean hasSub = buf.readBoolean();
         String subtitle = hasSub ? buf.readUtf() : null;
         String playerName = buf.readUtf();
-        return new PacketRadialAck(sound, entityId, subtitle, playerName);
+        double posX = buf.readDouble();
+        double posY = buf.readDouble();
+        double posZ = buf.readDouble();
+        return new PacketRadialAck(sound, entityId, subtitle, playerName, posX, posY, posZ);
     }
 
     public static void handle(PacketRadialAck pkt, Supplier<NetworkEvent.Context> ctx) {
@@ -72,19 +84,28 @@ public class PacketRadialAck {
         if (mc.level == null) return;
 
         Entity entity = mc.level.getEntity(pkt.entityId);
-        if (entity == null) return;
 
-        // 复用 PacketPlaySound 的播放逻辑：绑定实体、打断旧语音
-        VoxSoundInstance instance = new VoxSoundInstance(
-                ModSounds.VOX.get(), SoundSource.PLAYERS,
-                1.0f, 1.0f, entity, pkt.sound
-        );
+        net.minecraft.client.resources.sounds.SoundInstance instance;
+        if (entity != null) {
+            instance = new VoxSoundInstance(
+                    ModSounds.VOX.get(), SoundSource.PLAYERS,
+                    1.0f, 1.0f, entity, pkt.sound
+            );
+        } else {
+            instance = new VoxPositionedSoundInstance(
+                    ModSounds.VOX.get(), SoundSource.PLAYERS,
+                    1.0f, 1.0f,
+                    pkt.posX, pkt.posY, pkt.posZ, pkt.sound
+            );
+        }
         mc.getSoundManager().play(instance);
 
         // 字幕
         if (pkt.subtitle != null) {
-            boolean isOwn = (entity == mc.player);
-            double distance = entity.distanceTo(mc.player);
+            boolean isOwn = (pkt.entityId == (mc.player != null ? mc.player.getId() : -1));
+            double distance = mc.player != null
+                    ? mc.player.position().distanceTo(new net.minecraft.world.phys.Vec3(pkt.posX, pkt.posY, pkt.posZ))
+                    : 0;
             SubtitleOverlay.onSubtitle(pkt.playerName, pkt.subtitle, isOwn, distance);
         }
     }

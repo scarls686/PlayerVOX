@@ -1,10 +1,11 @@
 package com.playervox.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.playervox.common.radial.RadialRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -25,15 +26,24 @@ public class ClientSetup {
         }
     }
 
-    /** forgeBus 上监听按键按下 + 字幕渲染 */
+    /** forgeBus 上监听按键按下 + 轮盘渲染 + 字幕渲染 */
     @Mod.EventBusSubscriber(value = Dist.CLIENT)
     public static class ForgeBusEvents {
 
         private static boolean radialKeyWasDown = false;
 
         @SubscribeEvent
-        public static void onRenderGui(net.minecraftforge.client.event.RenderGuiOverlayEvent.Post event) {
+        public static void onRenderGui(RenderGuiOverlayEvent.Post event) {
+            RadialOverlay.onRenderGui(event);
             SubtitleOverlay.onRenderGui(event);
+        }
+
+        @SubscribeEvent
+        public static void onMouseScroll(InputEvent.MouseScrollingEvent event) {
+            if (RadialOverlay.isActive()) {
+                RadialOverlay.onScroll(event.getScrollDelta());
+                event.setCanceled(true);
+            }
         }
 
         @SubscribeEvent
@@ -47,13 +57,12 @@ public class ClientSetup {
                 mc.setScreen(new VoxSelectScreen());
             }
 
-            // 轮盘按键：按下时打开（无其他 Screen 时）；关闭由 RadialScreen.tick() 自行负责
-            boolean radialKeyDown = isRadialKeyDown(mc);
-            if (radialKeyDown && !radialKeyWasDown && mc.screen == null) {
-                String packId = VoxClientState.getSelectedPackId();
-                if (packId != null && !packId.isEmpty() && !RadialRegistry.getSlots(packId).isEmpty()) {
-                    mc.setScreen(new RadialScreen());
-                }
+            // 轮盘按键：按下时打开，松开时关闭（有 Screen 打开时跳过）
+            boolean radialKeyDown = mc.screen == null && isRadialKeyDown(mc);
+            if (radialKeyDown && !radialKeyWasDown) {
+                RadialOverlay.open();
+            } else if (!radialKeyDown && radialKeyWasDown) {
+                RadialOverlay.close();
             }
             radialKeyWasDown = radialKeyDown;
         }

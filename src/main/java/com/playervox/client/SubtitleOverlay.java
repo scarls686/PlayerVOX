@@ -39,7 +39,7 @@ public class SubtitleOverlay {
      * 收到字幕时调用（客户端线程）。
      */
     public static void onSubtitle(String playerName, String translationKey, boolean isOwn, double distance) {
-        VoxSubtitleConfig config = VoxSubtitleConfig.get();
+        VoxClientConfig config = VoxClientConfig.get();
 
         if (distance > MAX_DISTANCE) return;
         if (isOwn && !config.showOwn) return;
@@ -79,7 +79,7 @@ public class SubtitleOverlay {
 
         Font font = mc.font;
         GuiGraphics graphics = event.getGuiGraphics();
-        VoxSubtitleConfig config = VoxSubtitleConfig.get();
+        VoxClientConfig config = VoxClientConfig.get();
 
         int screenWidth = mc.getWindow().getGuiScaledWidth();
         int screenHeight = mc.getWindow().getGuiScaledHeight();

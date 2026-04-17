@@ -7,7 +7,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 public class NetworkHandler {
 
-    private static final String PROTOCOL_VERSION = "5";
+    private static final String PROTOCOL_VERSION = "6";
     public static SimpleChannel INSTANCE;
     private static int packetId = 0;
 

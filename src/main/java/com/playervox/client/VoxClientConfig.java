@@ -11,16 +11,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * 客户端字幕配置，存储在 config/playervox-subtitle.json。
+ * PlayerVOX 客户端配置，存储在 config/playervox-client.json。
+ * 合并字幕设置与轮盘设置。
  */
 @OnlyIn(Dist.CLIENT)
-public class VoxSubtitleConfig {
+public class VoxClientConfig {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path CONFIG_PATH = Path.of("config", "playervox-subtitle.json");
+    private static final Path CONFIG_PATH = Path.of("config", "playervox-client.json");
 
-    private static VoxSubtitleConfig instance;
+    private static VoxClientConfig instance;
 
+    // ---- 字幕设置 ----
     public boolean showOwn = true;
     public boolean showOther = true;
     public int x = -1; // -1 = 居中
@@ -28,25 +30,30 @@ public class VoxSubtitleConfig {
     public float scale = 1.0f;
     public String nameColor = "FFAA00"; // 玩家名颜色，十六进制 RGB
 
-    public static VoxSubtitleConfig get() {
+    // ---- 轮盘设置 ----
+    /** 鼠标灵敏度（0.1~3.0），影响虚拟光标移动速度 */
+    public float sensitivity = 0.6f;
+
+    public static VoxClientConfig get() {
         if (instance == null) {
             instance = load();
         }
         return instance;
     }
 
-    public static VoxSubtitleConfig load() {
+    public static VoxClientConfig load() {
         try {
             if (Files.exists(CONFIG_PATH)) {
                 String json = Files.readString(CONFIG_PATH);
-                instance = GSON.fromJson(json, VoxSubtitleConfig.class);
-                if (instance == null) instance = new VoxSubtitleConfig();
+                instance = GSON.fromJson(json, VoxClientConfig.class);
+                if (instance == null) instance = new VoxClientConfig();
+                instance.clamp();
                 return instance;
             }
         } catch (Exception e) {
-            PlayerVoxMod.LOGGER.error("PlayerVOX: 加载字幕配置失败", e);
+            PlayerVoxMod.LOGGER.error("PlayerVOX: failed to load client config", e);
         }
-        instance = new VoxSubtitleConfig();
+        instance = new VoxClientConfig();
         instance.save();
         return instance;
     }
@@ -56,8 +63,12 @@ public class VoxSubtitleConfig {
             Files.createDirectories(CONFIG_PATH.getParent());
             Files.writeString(CONFIG_PATH, GSON.toJson(this));
         } catch (IOException e) {
-            PlayerVoxMod.LOGGER.error("PlayerVOX: 保存字幕配置失败", e);
+            PlayerVoxMod.LOGGER.error("PlayerVOX: failed to save client config", e);
         }
+    }
+
+    private void clamp() {
+        sensitivity = Math.max(0.1f, Math.min(3.0f, sensitivity));
     }
 
     /**

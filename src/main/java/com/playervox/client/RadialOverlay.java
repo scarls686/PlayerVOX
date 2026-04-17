@@ -1,72 +1,84 @@
 package com.playervox.client;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import com.playervox.common.network.NetworkHandler;
 import com.playervox.common.network.PacketRadialSelect;
 import com.playervox.common.radial.RadialRegistry;
 import com.playervox.common.radial.RadialSlotDefinition;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
+import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import org.joml.Matrix4f;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 
 /**
- * 语音轮盘 GUI Screen。
- * 打开时 Minecraft 自动锁定鼠标（不转视角），鼠标位置直接决定选中扇区，滚轮翻页，关闭时确认选择。
+ * 语音轮盘 HUD Overlay。
+ * 不使用 Screen，玩家可自由移动；视角转动由 MouseHandlerMixin 阻止。
+ * 鼠标增量通过 GLFW 光标位置差值计算，用于扇区选择。
  */
-public class RadialScreen extends Screen {
+@OnlyIn(Dist.CLIENT)
+public class RadialOverlay {
 
-    /** 轮盘半径占屏幕高度的比例 */
     private static final float RADIUS_RATIO = 0.25f;
-    /** 死区为半径的 25% */
     private static final float DEADZONE_RATIO = 0.25f;
+    /** 光标指示点半径 */
+    private static final int CURSOR_DOT_SIZE = 2;
 
-    private int currentPage;
-    private int hoveredSlotIndex = -1;
+    private static boolean isOpen = false;
+    private static int currentPage;
+    private static int hoveredSlotIndex = -1;
 
-    public RadialScreen() {
-        super(Component.empty());
+    /** 虚拟光标位置（以屏幕中心为原点） */
+    private static float cursorX = 0;
+    private static float cursorY = 0;
+
+    /** GLFW 光标上一帧的绝对位置 */
+    private static double lastGlfwX = 0;
+    private static double lastGlfwY = 0;
+
+    /** Mixin 查询用 */
+    public static boolean isActive() {
+        return isOpen;
+    }
+
+    public static void open() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getWindow() == null) return;
+
         String packId = VoxClientState.getSelectedPackId();
-        currentPage = RadialPageState.getPage(packId != null ? packId : "");
-        int maxPage = (packId != null && !packId.isEmpty()) ? RadialRegistry.getPageCount(packId) : 1;
-        if (currentPage > maxPage) currentPage = 1;
-        if (currentPage < 1) currentPage = 1;
+        if (packId == null || packId.isEmpty()) return;
+        if (RadialRegistry.getSlots(packId).isEmpty()) return;
+
+        isOpen = true;
+        hoveredSlotIndex = -1;
+        cursorX = 0;
+        cursorY = 0;
+
+        currentPage = RadialPageState.getPage(packId);
+        int maxPage = RadialRegistry.getPageCount(packId);
+        if (currentPage < 1 || currentPage > maxPage) currentPage = 1;
+
+        // 记录当前 GLFW 光标位置作为基准
+        double[] xArr = new double[1], yArr = new double[1];
+        GLFW.glfwGetCursorPos(mc.getWindow().getWindow(), xArr, yArr);
+        lastGlfwX = xArr[0];
+        lastGlfwY = yArr[0];
     }
 
-    @Override
-    public boolean isPauseScreen() {
-        return false;
-    }
-
-    @Override
-    public void tick() {
-        // 按键松开时由 Screen 自身负责关闭，避免依赖外部 tick 的时序
-        if (!isRadialKeyDown()) {
-            onClose();
-            minecraft.setScreen(null);
-        }
-    }
-
-    private boolean isRadialKeyDown() {
-        if (minecraft == null || minecraft.getWindow() == null) return false;
-        InputConstants.Key key = VoxKeyBindings.RADIAL_WHEEL.getKey();
-        if (key.getType() == InputConstants.Type.KEYSYM) {
-            return GLFW.glfwGetKey(minecraft.getWindow().getWindow(), key.getValue()) == GLFW.GLFW_PRESS;
-        }
-        return false;
-    }
-
-    @Override
-    public void onClose() {
-        super.onClose();
+    public static void close() {
+        if (!isOpen) return;
+        isOpen = false;
 
         String packId = VoxClientState.getSelectedPackId();
         if (packId == null || packId.isEmpty()) return;
@@ -82,13 +94,13 @@ public class RadialScreen extends Screen {
         }
     }
 
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public static void onScroll(double delta) {
+        if (!isOpen) return;
         String packId = VoxClientState.getSelectedPackId();
-        if (packId == null || packId.isEmpty()) return false;
+        if (packId == null || packId.isEmpty()) return;
 
         int maxPage = RadialRegistry.getPageCount(packId);
-        if (maxPage <= 1) return false;
+        if (maxPage <= 1) return;
 
         if (delta > 0) {
             currentPage--;
@@ -97,29 +109,46 @@ public class RadialScreen extends Screen {
             currentPage++;
             if (currentPage > maxPage) currentPage = 1;
         }
-        return true;
     }
 
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // 不调用 super.render()，不绘制半透明背景
+    /** 由 ClientSetup.onRenderGui 调用 */
+    public static void onRenderGui(RenderGuiOverlayEvent.Post event) {
+        if (!isOpen) return;
+        if (event.getOverlay() != VanillaGuiOverlay.HOTBAR.type()) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.getWindow() == null) return;
 
         String packId = VoxClientState.getSelectedPackId();
         if (packId == null || packId.isEmpty()) return;
 
+        // 读取 GLFW 光标增量并累加到虚拟光标
+        double[] xArr = new double[1], yArr = new double[1];
+        GLFW.glfwGetCursorPos(mc.getWindow().getWindow(), xArr, yArr);
+        double dx = xArr[0] - lastGlfwX;
+        double dy = yArr[0] - lastGlfwY;
+        lastGlfwX = xArr[0];
+        lastGlfwY = yArr[0];
+
+        float sensitivity = VoxClientConfig.get().sensitivity;
+        cursorX += (float) (dx * sensitivity);
+        cursorY += (float) (dy * sensitivity);
+
+        // 渲染
+        GuiGraphics graphics = event.getGuiGraphics();
+        Font font = mc.font;
+        int screenWidth = mc.getWindow().getGuiScaledWidth();
+        int screenHeight = mc.getWindow().getGuiScaledHeight();
+
         List<RadialSlotDefinition> pageSlots = RadialRegistry.getSlotsForPage(packId, currentPage);
         int maxPage = RadialRegistry.getPageCount(packId);
 
-        float centerX = width / 2f;
-        float centerY = height / 2f;
-
-        float radius = height * RADIUS_RATIO;
+        float centerX = screenWidth / 2f;
+        float centerY = screenHeight / 2f;
+        float radius = screenHeight * RADIUS_RATIO;
         float deadzone = radius * DEADZONE_RATIO;
 
-        // 鼠标相对于屏幕中心的偏移
-        float dx = mouseX - centerX;
-        float dy = mouseY - centerY;
-        float dist = (float) Math.sqrt(dx * dx + dy * dy);
+        float dist = (float) Math.sqrt(cursorX * cursorX + cursorY * cursorY);
 
         int totalSlots = pageSlots.isEmpty() ? 1 : pageSlots.get(0).pageTotalSlots;
         float sectorAngle = (float) (2 * Math.PI / totalSlots);
@@ -128,7 +157,7 @@ public class RadialScreen extends Screen {
         if (dist < deadzone) {
             hoveredSlotIndex = -1;
         } else {
-            float angle = (float) Math.atan2(dy, dx);
+            float angle = (float) Math.atan2(cursorY, cursorX);
             float normalizedAngle = (float) (angle + Math.PI / 2);
             if (normalizedAngle < 0) normalizedAngle += (float) (2 * Math.PI);
             if (normalizedAngle >= 2 * Math.PI) normalizedAngle -= (float) (2 * Math.PI);
@@ -148,13 +177,13 @@ public class RadialScreen extends Screen {
         PoseStack poseStack = graphics.pose();
         poseStack.pushPose();
 
-        // 绘制半透明背景圆
+        // 半透明背景圆
         drawFilledCircle(poseStack, centerX, centerY, radius, 64, 0x40404040);
 
-        // 绘制死区圆
+        // 死区圆
         drawFilledCircle(poseStack, centerX, centerY, deadzone, 32, 0x50303030);
 
-        // 绘制扇区分割线
+        // 扇区分割线
         for (int i = 0; i < totalSlots; i++) {
             float lineAngle = i * sectorAngle - (float) (Math.PI / 2);
             float x1 = centerX + (float) Math.cos(lineAngle) * deadzone;
@@ -164,7 +193,7 @@ public class RadialScreen extends Screen {
             drawLine(poseStack, x1, y1, x2, y2, 0x60FFFFFF);
         }
 
-        // 绘制高亮扇区
+        // 高亮扇区
         if (hoveredSlotIndex >= 0 && hoveredSlotIndex < pageSlots.size()) {
             int slotIdx = pageSlots.get(hoveredSlotIndex).slot - 1;
             float startAngle = slotIdx * sectorAngle - (float) (Math.PI / 2);
@@ -172,11 +201,11 @@ public class RadialScreen extends Screen {
             drawArcFilled(poseStack, centerX, centerY, deadzone, radius, startAngle, endAngle, 16, 0x40FFFFFF);
         }
 
-        // 绘制圆环边框
+        // 圆环边框
         drawCircleOutline(poseStack, centerX, centerY, radius, 64, 0x60FFFFFF);
         drawCircleOutline(poseStack, centerX, centerY, deadzone, 32, 0x60FFFFFF);
 
-        // 绘制扇区标签和图标
+        // 扇区标签和图标
         for (int i = 0; i < pageSlots.size(); i++) {
             RadialSlotDefinition slot = pageSlots.get(i);
             int slotIdx = slot.slot - 1;
@@ -189,7 +218,7 @@ public class RadialScreen extends Screen {
                 ResourceLocation iconTexture = new ResourceLocation(
                         slot.icon.getNamespace(),
                         "textures/" + slot.icon.getPath() + ".png");
-                boolean iconExists = minecraft.getResourceManager().getResource(iconTexture).isPresent();
+                boolean iconExists = mc.getResourceManager().getResource(iconTexture).isPresent();
                 if (iconExists) {
                     int iconSize = 16;
                     RenderSystem.setShaderTexture(0, iconTexture);
@@ -218,7 +247,7 @@ public class RadialScreen extends Screen {
             }
         }
 
-        // 中心：页码显示
+        // 中心页码
         String pageText = currentPage + "/" + maxPage;
         int pageTextWidth = font.width(pageText);
         int centerColor = (hoveredSlotIndex == -1 && dist >= 1) ? 0xFFFFFF00 : 0xFFAAAAAA;
@@ -227,10 +256,16 @@ public class RadialScreen extends Screen {
                 (int) (centerY - font.lineHeight / 2f),
                 centerColor, true);
 
+        // 虚拟光标指示点（用 fill 走标准 GUI 管线，不被遮盖）
+        int cx = (int) (centerX + cursorX);
+        int cy = (int) (centerY + cursorY);
+        graphics.fill(cx - CURSOR_DOT_SIZE, cy - CURSOR_DOT_SIZE,
+                cx + CURSOR_DOT_SIZE, cy + CURSOR_DOT_SIZE, 0xDDFFFFFF);
+
         poseStack.popPose();
     }
 
-    // ===== 渲染工具方法 =====
+    // ===== 渲染工具方法（从 RadialScreen 搬运） =====
 
     private static void drawFilledCircle(PoseStack poseStack, float cx, float cy, float r, int segments, int argb) {
         float a = ((argb >> 24) & 0xFF) / 255f;

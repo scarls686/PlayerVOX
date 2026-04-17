@@ -192,7 +192,8 @@ public class VanillaTriggerHandler {
                 result.sound(), player.getName().getString(), packId);
         PacketPlaySound packet = new PacketPlaySound(
                 result.sound(), player.getId(), volume, pitch,
-                result.subtitle(), player.getName().getString()
+                result.subtitle(), player.getName().getString(),
+                player.getX(), player.getY(), player.getZ()
         );
         NetworkHandler.INSTANCE.send(
                 PacketDistributor.NEAR.with(() -> new PacketDistributor.TargetPoint(

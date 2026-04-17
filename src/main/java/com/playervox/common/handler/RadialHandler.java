@@ -46,7 +46,8 @@ public class RadialHandler {
             // 冷却中：发送空 ACK 给操作者，客户端静默
             NetworkHandler.INSTANCE.send(
                     PacketDistributor.PLAYER.with(() -> player),
-                    new PacketRadialAck(null, player.getId(), null, player.getName().getString())
+                    new PacketRadialAck(null, player.getId(), null, player.getName().getString(),
+                            player.getX(), player.getY(), player.getZ())
             );
             return;
         }
@@ -82,12 +83,14 @@ public class RadialHandler {
         // 发送 ACK 给操作者本人（客户端收到后播放）
         NetworkHandler.INSTANCE.send(
                 PacketDistributor.PLAYER.with(() -> player),
-                new PacketRadialAck(sound, player.getId(), subtitle, player.getName().getString())
+                new PacketRadialAck(sound, player.getId(), subtitle, player.getName().getString(),
+                        player.getX(), player.getY(), player.getZ())
         );
 
         // 广播 PacketPlaySound 给周围其他玩家
         PacketPlaySound broadcastPacket = new PacketPlaySound(
-                sound, player.getId(), volume, 1.0f, subtitle, player.getName().getString()
+                sound, player.getId(), volume, 1.0f, subtitle, player.getName().getString(),
+                player.getX(), player.getY(), player.getZ()
         );
         // 使用 NEAR 广播，排除操作者自己（操作者已通过 ACK 播放）
         for (ServerPlayer nearby : player.serverLevel().players()) {

@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.playervox.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "playervox.refmap.json",
+  "client": [
+    "MouseHandlerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
