@@ -25,13 +25,14 @@ public class TriggerEvaluator {
     /**
      * 通用入口。
      *
-     * @param namespace   语音包 ID（namespace）
-     * @param trigger     触发大类，如 "hurt"
-     * @param playerUUID  玩家 UUID，用于 once 状态查询
-     * @param source      伤害来源，可为 null
-     * @param damage      伤害量，hurt/death 时使用；low_health 时传血量百分比(0.0~1.0)
-     * @param target      击杀目标实体，kill 时使用
-     * @param extraString 额外字符串参数（advancement ID、gun_id 等）
+     * @param namespace     语音包 ID（namespace）
+     * @param trigger       触发大类，如 "hurt"
+     * @param playerUUID    玩家 UUID，用于 once 状态查询
+     * @param source        伤害来源，可为 null
+     * @param damage        伤害量，hurt/death 时使用；low_health 时传血量百分比(0.0~1.0)
+     * @param healthPercent 当前血量百分比(0.0~1.0)，hurt trigger 时传受伤后血量，其余传 null
+     * @param target        击杀目标实体，kill 时使用
+     * @param extraString   额外字符串参数（advancement ID、gun_id 等）
      */
     @Nullable
     public static Result evaluate(
@@ -40,6 +41,7 @@ public class TriggerEvaluator {
             UUID playerUUID,
             @Nullable DamageSource source,
             float damage,
+            @Nullable Float healthPercent,
             @Nullable Entity target,
             @Nullable String extraString
     ) {
@@ -78,7 +80,7 @@ public class TriggerEvaluator {
                 List<TriggerEntry> group = groups.get(i);
                 JsonObject groupCond = groupConditionsList.get(i);
 
-                if (!matchesConditions(groupCond, trigger, source, damage, target, extraString)) {
+                if (!matchesConditions(groupCond, trigger, source, damage, healthPercent, target, extraString)) {
                     continue;
                 }
 
@@ -118,10 +120,11 @@ public class TriggerEvaluator {
             String trigger,
             @Nullable DamageSource source,
             float damage,
+            @Nullable Float healthPercent,
             @Nullable Entity target,
             @Nullable String extraString
     ) {
-        return matchesConditions(cond, trigger, source, damage, target, extraString);
+        return matchesConditions(cond, trigger, source, damage, healthPercent, target, extraString);
     }
 
     private static boolean matchesConditions(
@@ -129,6 +132,7 @@ public class TriggerEvaluator {
             String trigger,
             @Nullable DamageSource source,
             float damage,
+            @Nullable Float healthPercent,
             @Nullable Entity target,
             @Nullable String extraString
     ) {
@@ -150,9 +154,14 @@ public class TriggerEvaluator {
         if (cond.has("min_damage") && damage < cond.get("min_damage").getAsFloat()) return false;
         if (cond.has("max_damage") && damage > cond.get("max_damage").getAsFloat()) return false;
 
-        // min_health_percent / max_health_percent（low_health 使用，damage 参数位传入血量百分比）
-        if (cond.has("min_health_percent") && damage < cond.get("min_health_percent").getAsFloat()) return false;
-        if (cond.has("max_health_percent") && damage > cond.get("max_health_percent").getAsFloat()) return false;
+        // min_health_percent / max_health_percent
+        // low_health trigger：damage 参数位传入血量百分比（healthPercent 为 null）
+        // hurt trigger：healthPercent 为受伤后血量百分比，与 damage 独立
+        if (cond.has("min_health_percent") || cond.has("max_health_percent")) {
+            float hp = healthPercent != null ? healthPercent : damage;
+            if (cond.has("min_health_percent") && hp < cond.get("min_health_percent").getAsFloat()) return false;
+            if (cond.has("max_health_percent") && hp > cond.get("max_health_percent").getAsFloat()) return false;
+        }
 
         // target_type（kill 类）
         if (cond.has("target_type") && target != null) {
@@ -184,6 +193,32 @@ public class TriggerEvaluator {
         if (cond.has("gun_id")) {
             if (!cond.get("gun_id").getAsString().equals(extraString)) return false;
         }
+
+        // item（pickup trigger）：精确物品ID或 # 前缀的 Tag
+        if (cond.has("item")) {
+            String itemCond = cond.get("item").getAsString();
+            if (extraString == null) return false;
+            if (itemCond.startsWith("#")) {
+                // Tag 匹配
+                String tagId = itemCond.substring(1);
+                net.minecraft.resources.ResourceLocation tagLoc = new net.minecraft.resources.ResourceLocation(tagId);
+                net.minecraft.tags.TagKey<net.minecraft.world.item.Item> tag =
+                        net.minecraft.tags.TagKey.create(
+                                net.minecraft.core.registries.Registries.ITEM,
+                                tagLoc
+                        );
+                net.minecraft.resources.ResourceLocation itemLoc = new net.minecraft.resources.ResourceLocation(extraString);
+                var holderOpt = net.minecraftforge.registries.ForgeRegistries.ITEMS.getHolder(itemLoc);
+                if (holderOpt.isEmpty() || !holderOpt.get().is(tag)) return false;
+            } else {
+                // 精确 ID 匹配
+                if (!itemCond.equals(extraString)) return false;
+            }
+        }
+
+        // min_fall_distance / max_fall_distance（fall trigger：damage 参数位传入 fallDistance）
+        if (cond.has("min_fall_distance") && damage < cond.get("min_fall_distance").getAsFloat()) return false;
+        if (cond.has("max_fall_distance") && damage > cond.get("max_fall_distance").getAsFloat()) return false;
 
         return true;
     }

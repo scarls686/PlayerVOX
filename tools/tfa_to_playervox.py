@@ -8,11 +8,13 @@ tfa_to_playervox.py
 输出:
     output/
     ├── pack_meta.json
-    └── data/<pack_id>/vox/triggers/
-        ├── death.json, login.json, respawn.json, hurt.json,
-        ├── kill.json, low_health.json, tacz_reload.json,
-        ├── tacz_shoot.json, tacz_kill.json, tacz_melee.json
-        └── custom_<id>.json  (callouts)
+    ├── data/<pack_id>/vox/triggers/
+    │   ├── death.json, login.json, respawn.json, hurt.json,
+    │   ├── kill.json, low_health.json, pickup.json,
+    │   ├── tacz_reload.json,
+    │   └── tacz_shoot.json, tacz_kill.json, tacz_melee.json
+    └── data/<pack_id>/vox/radial/
+        └── <id>.json  (callouts，每页最多 8 个 slot)
 """
 
 import re
@@ -32,7 +34,9 @@ COOLDOWN = {
     "hurt":         60,
     "kill":         200,
     "low_health":   200,
-    "tacz_reload":  200,
+    "pickup":       100,
+    "fall":         400,
+    "tacz_reload":  70,
     "tacz_shoot":   60,
     "tacz_kill":    200,
     "tacz_melee":   200,
@@ -41,6 +45,12 @@ COOLDOWN = {
 
 # low_health 的血量阈值（crithit/crithealth 共用）
 LOW_HEALTH_PERCENT = 0.35
+
+# fall 触发器默认最小坠落距离（方块数）
+FALL_MIN_DISTANCE = 22
+
+# 轮盘每页最多 slot 数
+RADIAL_SLOTS_PER_PAGE = 8
 
 # ---------------------------------------------------------------------------
 # Lua 解析
@@ -186,9 +196,10 @@ def process_sound_path(raw_path, pack_id, warnings):
       "snd1"               → "<pack_id>:snd1"   (无路径分隔符，视为相对路径)
       "other/snd.mp3"      → 警告并返回占位符
     """
-    # 取文件名（去掉所有目录前缀和扩展名）
+    # 取文件名（去掉所有目录前缀和扩展名），统一转小写与 OGG 文件名对齐
     basename = os.path.basename(raw_path.replace('\\', '/'))
     name, ext = os.path.splitext(basename)
+    name = name.lower()
     ext = ext.lower()
 
     if not ext:
@@ -240,7 +251,6 @@ def build_jsons(parsed, pack_id, warnings):
     main = parsed.get("main", {})
     damage = parsed.get("damage", {})
     murder = parsed.get("murder", {})
-    callouts = parsed.get("callouts", {})
 
     # --- death ---
     if "death" in main:
@@ -257,11 +267,18 @@ def build_jsons(parsed, pack_id, warnings):
         entries = make_entries(main["spawn"], pack_id, warnings)
         outputs["respawn"] = make_trigger_json("respawn", COOLDOWN["respawn"], entries)
 
-    # --- hurt（所有 hitgroup 合并）---
+    # --- hurt（crithit 低血量受伤条目优先 + 所有 hitgroup 普通条目）---
+    hurt_entries = []
+    # crithit：低血量被击中，加血量上限条件，排在普通 hurt 前
+    if "crithit" in main and main["crithit"]:
+        hurt_entries.extend(make_entries(
+            main["crithit"], pack_id, warnings,
+            extra_conditions={"max_health_percent": LOW_HEALTH_PERCENT}
+        ))
+    # damage hitgroup 合并（去重）
     all_hurt = []
     for sounds in damage.values():
         all_hurt.extend(sounds)
-    # 去重（不同 hitgroup 可能有相同音效）
     seen = set()
     deduped = []
     for s in all_hurt:
@@ -269,8 +286,9 @@ def build_jsons(parsed, pack_id, warnings):
             seen.add(s)
             deduped.append(s)
     if deduped:
-        entries = make_entries(deduped, pack_id, warnings)
-        outputs["hurt"] = make_trigger_json("hurt", COOLDOWN["hurt"], entries)
+        hurt_entries.extend(make_entries(deduped, pack_id, warnings))
+    if hurt_entries:
+        outputs["hurt"] = make_trigger_json("hurt", COOLDOWN["hurt"], hurt_entries)
 
     # --- kill（murder 所有分类合并）---
     all_kill = []
@@ -286,21 +304,17 @@ def build_jsons(parsed, pack_id, warnings):
         entries = make_entries(deduped, pack_id, warnings)
         outputs["kill"] = make_trigger_json("kill", COOLDOWN["kill"], entries)
 
-    # --- low_health（crithit + crithealth + healmax）---
+    # --- low_health（crithealth 低血量持续 + healmax 满血提示）---
     low_entries = []
-    crit_sounds = []
-    for key in ("crithit", "crithealth"):
-        if key in main:
-            crit_sounds.extend(main[key])
-    if crit_sounds:
+    if "crithealth" in main and main["crithealth"]:
         low_entries.extend(make_entries(
-            crit_sounds, pack_id, warnings,
+            main["crithealth"], pack_id, warnings,
             extra_conditions={
                 "min_health_percent": 0.0,
                 "max_health_percent": LOW_HEALTH_PERCENT
             }
         ))
-    if "healmax" in main:
+    if "healmax" in main and main["healmax"]:
         low_entries.extend(make_entries(
             main["healmax"], pack_id, warnings,
             extra_conditions={
@@ -311,6 +325,19 @@ def build_jsons(parsed, pack_id, warnings):
         ))
     if low_entries:
         outputs["low_health"] = make_trigger_json("low_health", COOLDOWN["low_health"], low_entries)
+
+    # --- pickup ---
+    if "pickup" in main and main["pickup"]:
+        entries = make_entries(main["pickup"], pack_id, warnings)
+        outputs["pickup"] = make_trigger_json("pickup", COOLDOWN["pickup"], entries)
+
+    # --- fall ---
+    if "fall" in main and main["fall"]:
+        entries = make_entries(
+            main["fall"], pack_id, warnings,
+            extra_conditions={"min_fall_distance": FALL_MIN_DISTANCE}
+        )
+        outputs["fall"] = make_trigger_json("fall", COOLDOWN["fall"], entries)
 
     # --- tacz_reload ---
     if "reload" in main:
@@ -323,13 +350,37 @@ def build_jsons(parsed, pack_id, warnings):
     for trig in ("tacz_shoot", "tacz_kill", "tacz_melee"):
         outputs[trig] = make_trigger_json(trig, COOLDOWN[trig], [])
 
-    # --- callouts → custom_<id> ---
+    return outputs
+
+
+def build_radials(parsed, pack_id, warnings):
+    """
+    将 callouts 子表转换为 PlayerVOX 轮盘 JSON 对象。
+    每个 callout 占一个 slot，按解析顺序排布，每页最多 RADIAL_SLOTS_PER_PAGE 个。
+    返回 { callout_id: radial_json_dict }
+    """
+    callouts = parsed.get("callouts", {})
+    outputs = {}
+    slot_index = 0  # 全局 slot 计数（0 起）
+
     for callout_id, sounds in callouts.items():
         if not sounds:
             continue
         entries = make_entries(sounds, pack_id, warnings)
-        filename = f"custom_{callout_id}"
-        outputs[filename] = make_trigger_json(callout_id, COOLDOWN["custom"], entries)
+        page_num = slot_index // RADIAL_SLOTS_PER_PAGE + 1
+        slot_num = slot_index % RADIAL_SLOTS_PER_PAGE + 1
+        slots_on_page = min(
+            RADIAL_SLOTS_PER_PAGE,
+            len(callouts) - (page_num - 1) * RADIAL_SLOTS_PER_PAGE
+        )
+        outputs[callout_id] = {
+            "label": f"{pack_id}.callout.{callout_id}",
+            "page": [page_num, slots_on_page],
+            "slot": slot_num,
+            "cooldown": COOLDOWN["custom"],
+            "entries": entries
+        }
+        slot_index += 1
 
     return outputs
 
@@ -338,7 +389,7 @@ def build_jsons(parsed, pack_id, warnings):
 # 文件写出
 # ---------------------------------------------------------------------------
 
-def write_outputs(jsons, pack_id, pack_name, out_dir):
+def write_outputs(jsons, radials, pack_id, pack_name, out_dir):
     # pack_meta.json
     meta = {
         "id": pack_id,
@@ -362,6 +413,18 @@ def write_outputs(jsons, pack_id, pack_name, out_dir):
         entry_count = len(data.get("entries", []))
         tag = "空骨架" if entry_count == 0 else f"{entry_count} 条 entry"
         print(f"[生成] data/{pack_id}/vox/triggers/{filename}.json  ({tag})")
+
+    # radial JSONs
+    if radials:
+        radial_dir = os.path.join(out_dir, "data", pack_id, "vox", "radial")
+        os.makedirs(radial_dir, exist_ok=True)
+        for filename, data in radials.items():
+            path = os.path.join(radial_dir, f"{filename}.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            entry_count = len(data.get("entries", []))
+            page, slot = data["page"][0], data["slot"]
+            print(f"[生成] data/{pack_id}/vox/radial/{filename}.json  (p{page}s{slot}, {entry_count} 条 entry)")
 
 
 # ---------------------------------------------------------------------------
@@ -415,7 +478,7 @@ def main():
 
     # 丢弃的事件
     skipped = []
-    main_supported = {"death", "spawn", "crithit", "crithealth", "healmax", "reload"}
+    main_supported = {"death", "spawn", "crithit", "crithealth", "healmax", "reload", "pickup", "fall"}
     for key in parsed.get("main", {}):
         if key not in main_supported:
             skipped.append(f"main.{key}")
@@ -431,6 +494,7 @@ def main():
     # 构建 JSON
     warnings = []
     jsons = build_jsons(parsed, pack_id, warnings)
+    radials = build_radials(parsed, pack_id, warnings)
 
     # 输出警告
     if warnings:
@@ -440,12 +504,14 @@ def main():
 
     # 写出文件
     print(f"\n[输出] 目录: {out_dir}")
-    write_outputs(jsons, pack_id, pack_name, out_dir)
+    write_outputs(jsons, radials, pack_id, pack_name, out_dir)
 
-    print(f"\n完成！共生成 {len(jsons) + 1} 个文件。")
+    total_files = 1 + len(jsons) + len(radials)
+    print(f"\n完成！共生成 {total_files} 个文件。")
+    if radials:
+        print(f"提示: 轮盘共 {len(radials)} 个 slot，label 格式为 {pack_id}.callout.<id>，可在 lang 文件中添加翻译。")
     print("提示: tacz_shoot / tacz_kill / tacz_melee 为空骨架，请根据需要手动填写音效。")
-    if "icon.png" in open(os.path.join(out_dir, "pack_meta.json")).read():
-        print("提示: 请将图标文件放置到 assets/<pack_id>/textures/icon.png。")
+    print("提示: 请将图标文件放置到 assets/<pack_id>/textures/icon.png。")
 
 
 if __name__ == "__main__":
